@@ -1,22 +1,25 @@
-const cacheName = 'Admin of BIOM';
-const cacheAssets = [
-  'index.html',
-  'style.css',
-  'script.js'
+const cacheName = 'Admin-biom-v1';
+const assets = [
+  './',
+  './index.html',
+  './style.css', 
+  './app.js'
 ];
 
-// Install Event
+// ফাইলগুলো ক্যাশ করা
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(cacheName)
-      .then(cache => {
-        cache.addAll(cacheAssets);
-      })
-      .then(() => self.skipWaiting())
+    caches.open(cacheName).then(cache => {
+      return cache.addAll(assets);
+    })
   );
 });
 
-// Fetch Event (Offline support)
+// অফলাইনে ফাইল পরিবেশন করা
 self.addEventListener('fetch', e => {
-  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+  e.respondWith(
+    caches.match(e.request).then(res => {
+      return res || fetch(e.request);
+    })
+  );
 });
