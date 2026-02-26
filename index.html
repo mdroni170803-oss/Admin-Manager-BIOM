@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIOM Admin Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- html2canvas for Download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        /* Custom Scrollbar for Premium Look */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #06b6d4; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #0891b2; }
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
+    <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- Icons (SVG) ---
+        const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>;
+        const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
+        const ChartIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>;
+        const StarIcon = ({ filled, onClick }) => (
+            <svg onClick={onClick} className={`cursor-pointer ${filled ? 'text-yellow-400' : 'text-gray-500'}`} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+        );
+        const CloseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>;
+        const EditIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
+        const DownloadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>;
+
+        const App = () => {
+            const [admins, setAdmins] = useState([]);
+            const [searchQuery, setSearchQuery] = useState("");
+            
+            // Modals & Views States
+            const [showAddForm, setShowAddForm] = useState(false);
+            const [showChart, setShowChart] = useState(false);
+            const[selectedAdmin, setSelectedAdmin] = useState(null);
+            
+            // Confirmation & Rating States
+            const[ratingDialog, setRatingDialog] = useState({ isOpen: false, adminId: null, current: 0 });
+            const[statusDialog, setStatusDialog] = useState({ isOpen: false, adminId: null, currentStatus: true });
+
+            // Form Data State (Images removed)
+            const initialForm = { id: null, name: '', age: '', gender: 'Male', address: '', mobile: '', whatsapp: '', facebook: '', batch: '', joinDate: '', currentTrainer: '', lastTrainer: '', rating: 5, isActive: true };
+            const [formData, setFormData] = useState(initialForm);
+
+            // Calculate Experience
+            const getExperience = (joinDate) => {
+                if (!joinDate) return "N/A";
+                const start = new Date(joinDate);
+                const now = new Date();
+                const diffTime = Math.abs(now - start);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays < 30) return "Less than a month";
+                const months = Math.floor(diffDays / 30);
+                if (months < 12) return `${months} Months`;
+                return `${Math.floor(months / 12)} Y ${months % 12} M`;
+            };
+
+            // Process Chart Data (Month wise based on System Entry Time)
+const chartData = useMemo(() => {
+    const data = {};
+    admins.forEach(ad => {
+        // ad.id এর ভেতরে Date.now() হিসেবে এডমিনকে সিস্টেমে এড করার অরিজিনাল সময়টা আছে
+        const date = new Date(ad.id); 
+        const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+        
+        if (!data[monthYear]) {
+            data[monthYear] = { active: 0, inactive: 0 };
+        }
+        
+        ad.isActive ? data[monthYear].active++ : data[monthYear].inactive++;
+    });
+    return data;
+}, [admins]);
+
+            // Save Admin
+            const handleSaveAdmin = (e) => {
+                e.preventDefault();
+                if (formData.id) {
+                    setAdmins(admins.map(a => a.id === formData.id ? formData : a));
+                    if(selectedAdmin) setSelectedAdmin(formData);
+                } else {
+                    setAdmins([...admins, { ...formData, id: Date.now() }]);
+                }
+                setShowAddForm(false);
+                setFormData(initialForm);
+            };
+
+            // Update Rating
+            const changeRating = (val) => {
+                setAdmins(admins.map(a => a.id === ratingDialog.adminId ? { ...a, rating: val } : a));
+                setRatingDialog({ isOpen: false, adminId: null, current: 0 });
+            };
+
+            // Update Status
+            const toggleStatus = () => {
+                setAdmins(admins.map(a => a.id === statusDialog.adminId ? { ...a, isActive: !a.isActive } : a));
+                setStatusDialog({ isOpen: false, adminId: null, currentStatus: true });
+            };
+
+            // Download Logic
+            const downloadDetails = () => {
+                const element = document.getElementById('details-card-capture');
+                html2canvas(element, { backgroundColor: '#2C3E50', scale: 2 }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `${selectedAdmin.name}_Details.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                });
+            };
+
+            // Sorting & Filtering
+            let filteredAdmins = admins.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            filteredAdmins.sort((a, b) => b.rating - a.rating);
+
+            // Stats
+            const totalAdmins = admins.length;
+            const totalActive = admins.filter(a => a.isActive).length;
+            const totalInactive = totalAdmins - totalActive;
+
+            return (
+                <div className="min-h-screen pb-10 flex flex-col items-center">
+                    {/* App Bar */}
+                    <div className="w-full bg-slate-800/80 backdrop-blur-md shadow-lg sticky top-0 z-40 border-b border-white/10">
+                        <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+                            <h1 className="text-2xl font-bold tracking-wider text-cyan-400">BIOM</h1>
+                            <div className="flex gap-4 items-center">
+                                <div className="relative">
+                                    <SearchIcon />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search admin..." 
+                                        className="absolute top-0 right-0 opacity-0 cursor-text w-8 focus:opacity-100 focus:w-48 transition-all duration-300 bg-slate-700 text-white rounded-full px-4 py-1 outline-none border border-cyan-500/50"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                                <button onClick={() => { setFormData(initialForm); setShowAddForm(true); }} className="p-2 bg-cyan-600 hover:bg-cyan-500 rounded-full text-white shadow-lg shadow-cyan-500/30 transition-all"><PlusIcon /></button>
+                                <button onClick={() => setShowChart(true)} className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full text-cyan-400 transition-all"><ChartIcon /></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="w-full max-w-4xl px-4 mt-6">
+                        {/* Stats Board */}
+                        <div className="grid grid-cols-3 gap-4 mb-6">
+                            <div className="glass p-4 rounded-2xl text-center">
+                                <p className="text-gray-400 text-sm">Total</p>
+                                <p className="text-2xl font-bold">{totalAdmins}</p>
+                            </div>
+                            <div className="glass p-4 rounded-2xl text-center border-b-4 border-green-500">
+                                <p className="text-gray-400 text-sm">Active</p>
+                                <p className="text-2xl font-bold text-green-400">{totalActive}</p>
+                            </div>
+                            <div className="glass p-4 rounded-2xl text-center border-b-4 border-red-500">
+                                <p className="text-gray-400 text-sm">Inactive</p>
+                                <p className="text-2xl font-bold text-red-400">{totalInactive}</p>
+                            </div>
+                        </div>
+
+                        {/* Admin List */}
+                        <div className="glass rounded-2xl p-4 min-h-[50vh] max-h-[70vh] overflow-y-auto">
+                            {filteredAdmins.length === 0 ? (
+                                <div className="h-full flex items-center justify-center text-gray-500 pt-20">No admins found. Click + to add.</div>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    {filteredAdmins.map((admin, index) => (
+                                        <div key={admin.id} className="bg-slate-800/60 p-4 rounded-xl flex justify-between items-center border border-white/5 hover:border-cyan-500/30 transition-all">
+                                            <div className="flex items-center gap-4">
+                                                <div className="bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center font-bold text-cyan-400">{index + 1}</div>
+                                                <div>
+                                                    <h3 className="font-semibold text-lg cursor-pointer hover:text-cyan-400 transition" onClick={() => setSelectedAdmin(admin)}>{admin.name}</h3>
+                                                    <div className="flex gap-1 mt-1">
+                                                        {[1, 2, 3, 4, 5].map(star => (
+                                                            <div key={star} onClick={() => setRatingDialog({ isOpen: true, adminId: admin.id, current: admin.rating })}>
+                                                                <StarIcon filled={star <= admin.rating} />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => setStatusDialog({ isOpen: true, adminId: admin.id, currentStatus: admin.isActive })}
+                                                className={`px-4 py-1.5 rounded-lg font-medium text-sm transition-all shadow-lg ${admin.isActive ? 'bg-green-500/20 text-green-400 border border-green-500/50 hover:bg-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30'}`}>
+                                                {admin.isActive ? 'Active' : 'Inactive'}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* DETAILS MODAL (Matching your screenshot but removed image row) */}
+                    {selectedAdmin && (
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                            <div className="w-full max-w-lg pb-10 pt-20">
+                                {/* Top Gap added via pt-20 and mb-6 for Edit/Download section */}
+                                <div className="flex justify-between items-center mb-6 bg-slate-800 p-3 rounded-2xl shadow-lg border border-white/10">
+                                    <button onClick={() => setSelectedAdmin(null)} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600"><CloseIcon/></button>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => { setFormData(selectedAdmin); setShowAddForm(true); setSelectedAdmin(null); }} className="flex items-center gap-2 px-4 py-2 bg-slate-700 rounded-xl text-cyan-400 hover:bg-slate-600"><EditIcon/> Edit</button>
+                                        <button onClick={downloadDetails} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 rounded-xl text-white hover:bg-cyan-500"><DownloadIcon/> Download</button>
+                                    </div>
+                                </div>
+
+                                {/* Capture Area for Image Download */}
+                                <div id="details-card-capture" className="bg-[#2C3E50] rounded-3xl p-6 border border-white/10 shadow-2xl">
+                                    <div className="text-center mb-6">
+                                        <h2 className="text-3xl font-bold text-[#00BCD4]">{selectedAdmin.name}</h2>
+                                        <div className="flex justify-center gap-1 mt-2">
+                                            {[1, 2, 3, 4, 5].map(star => <StarIcon key={star} filled={star <= selectedAdmin.rating} />)}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-[#34495E] p-4 rounded-xl">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Experience</p>
+                                            <p className="text-white font-medium">{getExperience(selectedAdmin.joinDate)}</p>
+                                        </div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Age</p>
+                                            <p className="text-white font-medium">{selectedAdmin.age}</p>
+                                        </div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Gender</p>
+                                            <p className="text-white font-medium">{selectedAdmin.gender}</p>
+                                        </div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Mobile</p>
+                                            <p className="text-white font-medium">{selectedAdmin.mobile}</p>
+                                        </div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl col-span-2">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Address</p>
+                                            <p className="text-white font-medium">{selectedAdmin.address}</p>
+                                        </div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl col-span-2 md:col-span-1">
+                                            <p className="text-[#00BCD4] text-sm mb-1">WhatsApp</p>
+                                            <p className="text-white font-medium">{selectedAdmin.whatsapp || 'N/A'}</p>
+                                        </div>
+                                        <div className="hidden md:block"></div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl col-span-2">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Facebook Link</p>
+                                            <p className="text-white font-medium truncate">{selectedAdmin.facebook}</p>
+                                        </div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Batch</p>
+                                            <p className="text-white font-medium">{selectedAdmin.batch}</p>
+                                        </div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Join Date</p>
+                                            <p className="text-white font-medium">{selectedAdmin.joinDate}</p>
+                                        </div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Current Trainer</p>
+                                            <p className="text-white font-medium">{selectedAdmin.currentTrainer}</p>
+                                        </div>
+                                        <div className="bg-[#34495E] p-4 rounded-xl">
+                                            <p className="text-[#00BCD4] text-sm mb-1">Last Trainer</p>
+                                            <p className="text-white font-medium">{selectedAdmin.lastTrainer}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ADD ADMIN FORM MODAL */}
+                    {showAddForm && (
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                            <div className="glass w-full max-w-2xl rounded-2xl max-h-[90vh] flex flex-col shadow-2xl">
+                                <div className="p-4 border-b border-white/10 flex justify-between items-center">
+                                    <h2 className="text-xl font-bold text-cyan-400">{formData.id ? 'Edit Admin' : 'Add New Admin'}</h2>
+                                    <button onClick={() => setShowAddForm(false)} className="text-gray-400 hover:text-white"><CloseIcon/></button>
+                                </div>
+                                <div className="p-6 overflow-y-auto custom-scrollbar">
+                                    <form id="adminForm" onSubmit={handleSaveAdmin} className="space-y-6">
+                                        {/* Personal Details */}
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">Personal Details</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <input required type="text" placeholder="1. Name" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                                                <input required type="number" placeholder="2. Age" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} />
+                                                <select className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500 text-gray-300" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}>
+                                                    <option>Male</option><option>Female</option><option>Other</option>
+                                                </select>
+                                                <input required type="text" placeholder="4. Address" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                                            </div>
+                                        </div>
+                                        {/* Contact Details */}
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">Contact Details</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <input required type="tel" placeholder="5. Mobile Number" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} />
+                                                <input type="tel" placeholder="6. WhatsApp Number (Optional)" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500" value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} />
+                                                <input required type="url" placeholder="7. Facebook ID Link" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500 md:col-span-2" value={formData.facebook} onChange={e => setFormData({...formData, facebook: e.target.value})} />
+                                            </div>
+                                        </div>
+                                        {/* Assigned Details */}
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">Assigned Details</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <input required type="text" placeholder="8. Batch Number" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500" value={formData.batch} onChange={e => setFormData({...formData, batch: e.target.value})} />
+                                                <input required type="date" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500 text-gray-300" value={formData.joinDate} onChange={e => setFormData({...formData, joinDate: e.target.value})} />
+                                                <input required type="text" placeholder="10. Current Trainer" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500" value={formData.currentTrainer} onChange={e => setFormData({...formData, currentTrainer: e.target.value})} />
+                                                <input required type="text" placeholder="11. Last Trainer" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500" value={formData.lastTrainer} onChange={e => setFormData({...formData, lastTrainer: e.target.value})} />
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div className="p-4 border-t border-white/10 bg-slate-800/50 rounded-b-2xl flex justify-end">
+                                    <button type="submit" form="adminForm" className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/30">Save Admin</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* CHART MODAL */}
+                    {showChart && (
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                            <div className="glass w-full max-w-xl p-6 rounded-3xl relative shadow-2xl">
+                                <button onClick={() => setShowChart(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><CloseIcon/></button>
+                                <h2 className="text-xl font-bold text-cyan-400 mb-6 text-center">Month-wise Admin Status</h2>
+                                {Object.keys(chartData).length === 0 ? (
+                                    <p className="text-center text-gray-500 py-10">No data available yet.</p>
+                                ) : (
+                                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                                        {Object.entries(chartData).map(([month, data]) => {
+                                            const total = data.active + data.inactive;
+                                            const activePercent = (data.active / total) * 100;
+                                            const inactivePercent = (data.inactive / total) * 100;
+                                            return (
+                                                <div key={month} className="bg-slate-800 p-4 rounded-xl border border-white/5">
+                                                    <p className="font-semibold mb-2">{month}</p>
+                                                    <div className="flex h-6 rounded-full overflow-hidden bg-slate-900">
+                                                        <div style={{ width: `${activePercent}%` }} className="bg-green-500 flex items-center justify-center text-xs font-bold">{data.active > 0 && data.active}</div>
+                                                        <div style={{ width: `${inactivePercent}%` }} className="bg-red-500 flex items-center justify-center text-xs font-bold">{data.inactive > 0 && data.inactive}</div>
+                                                    </div>
+                                                    <div className="flex justify-between text-xs mt-2 text-gray-400">
+                                                        <span>Active: {data.active}</span>
+                                                        <span>Inactive: {data.inactive}</span>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STATUS CONFIRMATION DIALOG */}
+                    {statusDialog.isOpen && (
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="glass p-6 rounded-2xl w-full max-w-sm text-center">
+                                <h3 className="text-xl font-bold mb-4">Confirmation</h3>
+                                <p className="text-gray-300 mb-6">Are you sure you want to mark this admin as <span className={`font-bold ${statusDialog.currentStatus ? 'text-red-400' : 'text-green-400'}`}>{statusDialog.currentStatus ? 'Inactive' : 'Active'}</span>?</p>
+                                <div className="flex justify-center gap-4">
+                                    <button onClick={() => setStatusDialog({ isOpen: false, adminId: null, currentStatus: true })} className="px-6 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 transition">Cancel</button>
+                                    <button onClick={toggleStatus} className={`px-6 py-2 rounded-xl font-bold transition text-white ${statusDialog.currentStatus ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}>Confirm</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* RATING DIALOG */}
+                    {ratingDialog.isOpen && (
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="glass p-6 rounded-2xl w-full max-w-xs text-center">
+                                <h3 className="text-xl font-bold mb-6 text-cyan-400">Set Admin Rating</h3>
+                                <div className="flex justify-center gap-2 mb-8">
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                        <div key={star} onClick={() => changeRating(star)} className="transform hover:scale-125 transition">
+                                            <StarIcon filled={star <= ratingDialog.current} />
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => setRatingDialog({ isOpen: false, adminId: null, current: 0 })} className="w-full py-2 rounded-xl bg-slate-700 hover:bg-slate-600 transition">Close</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then(reg => console.log('Service Worker Registered'))
+        .catch(err => console.log(`SW Error: ${err}`));
+    });
+  }
+</script>
+</body>
+</html>
